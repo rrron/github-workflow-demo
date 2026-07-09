@@ -1,6 +1,6 @@
 ## Jira
 
-Jira issue: PROJ-000
+Jira issue: SCRUM-000
 
 ## Summary
 
@@ -8,6 +8,7 @@ Describe the change in one or two sentences.
 
 ## Checklist
 
-- [ ] Jira key is present in the branch name, commit message, and PR title.
-- [ ] Tests and lint checks pass.
-- [ ] The PR is ready for CODEOWNER review.
+- [ ] Jira key is present in the branch name, commit message, PR title, and PR description.
+- [ ] CI checks are expected to pass.
+- [x] The PR is ready for CODEOWNER review.
+- [ ] Auto-merge can be enabled after CI starts.
