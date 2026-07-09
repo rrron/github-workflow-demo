@@ -11,14 +11,15 @@ class PullRequestSummary:
 
 def extract_jira_key(text: str) -> str | None:
     """Return the first Jira-like issue key from a branch, commit, or PR title."""
-    tokens = text.replace("/", "-").replace("_", "-").split("-")
+    compact_text = text.replace("/", "-").replace("_", "-")
+    words = compact_text.split()
+    tokens = compact_text.split("-")
 
     for index, token in enumerate(tokens[:-1]):
         next_token = tokens[index + 1]
         if token.isalpha() and next_token.isdigit():
             return f"{token.upper()}-{next_token}"
 
-    words = text.split()
     for word in words:
         cleaned = word.strip("[]():,;")
         if "-" in cleaned:

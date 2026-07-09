@@ -13,6 +13,10 @@ def test_extracts_jira_key_case_insensitively() -> None:
     assert extract_jira_key("proj-321-demo-change") == "PROJ-321"
 
 
+def test_extracts_jira_key_from_prefixed_branch_name() -> None:
+    assert extract_jira_key("feature/SCRUM-1-auto-merge-demo") == "SCRUM-1"
+
+
 def test_summary_requires_review_by_default() -> None:
     summary = summarize_pull_request("PROJ-789 Add build step", ["status: needs-review"])
 
