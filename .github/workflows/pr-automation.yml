@@ -29,6 +29,9 @@ jobs:
               core.info("No pull request found for this event.");
               return;
             }
+
+            core.info(`Debug pull request payload: ${JSON.stringify(pr)}`);
+
             if (pr.state && pr.state !== "open") {
               core.info(`Pull request is ${pr.state}; status labels will not be changed.`);
               return;
