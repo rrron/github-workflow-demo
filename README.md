@@ -1,4 +1,4 @@
-# GitHub Workflow Demo
+## GitHub Workflow Demo
 
 This repository demonstrates an automated delivery workflow built around GitHub
 pull requests, code review, CI checks, auto-merge, and Jira traceability.
