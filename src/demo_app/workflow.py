@@ -15,16 +15,16 @@ def extract_jira_key(text: str) -> str | None:
 
     for index, token in enumerate(tokens[:-1]):
         next_token = tokens[index + 1]
-        if token.isalpha() and token.isupper() and next_token.isdigit():
-            return f"{token}-{next_token}"
+        if token.isalpha() and next_token.isdigit():
+            return f"{token.upper()}-{next_token}"
 
     words = text.split()
     for word in words:
         cleaned = word.strip("[]():,;")
         if "-" in cleaned:
             prefix, suffix = cleaned.split("-", maxsplit=1)
-            if prefix.isalpha() and prefix.isupper() and suffix.isdigit():
-                return cleaned
+            if prefix.isalpha() and suffix.isdigit():
+                return f"{prefix.upper()}-{suffix}"
 
     return None
 

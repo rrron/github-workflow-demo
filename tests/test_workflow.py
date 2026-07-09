@@ -9,6 +9,10 @@ def test_extracts_jira_key_from_pull_request_title() -> None:
     assert extract_jira_key("PROJ-456 Add workflow labels") == "PROJ-456"
 
 
+def test_extracts_jira_key_case_insensitively() -> None:
+    assert extract_jira_key("proj-321-demo-change") == "PROJ-321"
+
+
 def test_summary_requires_review_by_default() -> None:
     summary = summarize_pull_request("PROJ-789 Add build step", ["status: needs-review"])
 

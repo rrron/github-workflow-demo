@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   labels:
@@ -63,12 +63,16 @@ jobs:
 
             async function addLabel(name) {
               if (!labelNames.includes(name)) {
-                await github.rest.issues.addLabels({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  labels: [name],
-                });
+                try {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: pr.number,
+                    labels: [name],
+                  });
+                } catch (error) {
+                  core.warning(`Could not add label ${name}: ${error.message}`);
+                }
               }
             }
 
