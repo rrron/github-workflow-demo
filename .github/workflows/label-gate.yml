@@ -1,0 +1,28 @@
+name: label-gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ready-to-merge-label:
+    name: ready-to-merge-label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require ready-to-merge label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map((label) => label.name);
+            const requiredLabel = "status: ready-to-merge";
+
+            if (!labels.includes(requiredLabel)) {
+              core.setFailed(`Missing required label: ${requiredLabel}`);
+              return;
+            }
+
+            core.info(`Required label exists: ${requiredLabel}`);

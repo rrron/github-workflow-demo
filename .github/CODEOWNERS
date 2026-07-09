@@ -1,0 +1,9 @@
+# Add real GitHub users or organization teams after they receive write access.
+# Example:
+# * @rrron @second-reviewer
+# * @your-org/reviewers
+
+* @rrron
+
+# Protect workflow and ownership changes with the repository owner.
+/.github/ @rrron
