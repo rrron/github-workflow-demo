@@ -3,6 +3,8 @@ name: jira-comment
 on:
   pull_request:
     types: [opened, reopened, closed]
+  pull_request_review:
+    types: [submitted]
 
 permissions:
   contents: read
@@ -11,17 +13,24 @@ jobs:
   comment:
     name: jira-comment
     runs-on: ubuntu-latest
-    if: vars.JIRA_ENABLED == 'true'
+    environment: github-workflow-demo
     steps:
       - name: Send pull request comment to Jira
         uses: actions/github-script@v7
         env:
+          JIRA_ENABLED: ${{ vars.JIRA_ENABLED }}
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         with:
           script: |
-            const title = context.payload.pull_request.title;
+            if (process.env.JIRA_ENABLED !== "true") {
+              core.info("Jira comments are disabled because JIRA_ENABLED is not true.");
+              return;
+            }
+
+            const pullRequest = context.payload.pull_request;
+            const title = pullRequest.title;
             const match = title.match(/[A-Z][A-Z0-9]+-\d+/);
 
             if (!match) {
@@ -30,9 +39,63 @@ jobs:
             }
 
             const issueKey = match[0];
-            const state = context.payload.pull_request.merged
-              ? "merged"
-              : context.payload.pull_request.state;
+            const prUrl = pullRequest.html_url;
+            const prLinkText = `#${pullRequest.number}`;
+            const actor = context.actor;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const shortSha = pullRequest.head.sha.substring(0, 7);
+            const commitUrl = `https://github.com/${owner}/${repo}/commit/${pullRequest.head.sha}`;
+            const branch = pullRequest.head.ref;
+            const base = pullRequest.base.ref;
+            const eventName = context.eventName;
+            const action = context.payload.action;
+            const reviewState = context.payload.review?.state;
+
+            const text = (value) => ({ type: "text", text: value });
+            const link = (value, href) => ({
+              type: "text",
+              text: value,
+              marks: [{ type: "link", attrs: { href } }],
+            });
+
+            let comment = null;
+
+            if (eventName === "pull_request_review" && reviewState === "approved") {
+              comment = [
+                text(`GitHub PR approved by ${actor}: `),
+                link(prLinkText, prUrl),
+                text(". Auto-merge can complete after required gates pass."),
+              ];
+            } else if (eventName === "pull_request" && action === "closed" && pullRequest.merged) {
+              comment = [
+                text(`GitHub PR merged to ${base}: `),
+                link(prLinkText, prUrl),
+                text(". Final commit: "),
+                link(shortSha, commitUrl),
+                text("."),
+              ];
+            } else if (eventName === "pull_request" && action === "closed") {
+              comment = [
+                text(`GitHub PR closed without merge by ${actor}: `),
+                link(prLinkText, prUrl),
+                text("."),
+              ];
+            } else if (eventName === "pull_request" && ["opened", "reopened"].includes(action)) {
+              comment = [
+                text(`GitHub PR ${action} by ${actor}: `),
+                link(prLinkText, prUrl),
+                text(`. Branch ${branch} targets ${base}; commit `),
+                link(shortSha, commitUrl),
+                text("."),
+              ];
+            }
+
+            if (!comment) {
+              core.info(`No Jira comment configured for ${eventName}/${action || reviewState}.`);
+              return;
+            }
+
             const body = {
               body: {
                 type: "doc",
@@ -40,12 +103,7 @@ jobs:
                 content: [
                   {
                     type: "paragraph",
-                    content: [
-                      {
-                        type: "text",
-                        text: `GitHub PR ${context.payload.pull_request.html_url} is ${state}.`,
-                      },
-                    ],
+                    content: comment,
                   },
                 ],
               },
