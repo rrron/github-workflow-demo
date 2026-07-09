@@ -14,16 +14,21 @@ jobs:
     name: jira-comment
     runs-on: ubuntu-latest
     environment: github-workflow-demo
-    if: vars.JIRA_ENABLED == 'true'
     steps:
       - name: Send pull request comment to Jira
         uses: actions/github-script@v7
         env:
+          JIRA_ENABLED: ${{ vars.JIRA_ENABLED }}
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         with:
           script: |
+            if (process.env.JIRA_ENABLED !== "true") {
+              core.info("Jira comments are disabled because JIRA_ENABLED is not true.");
+              return;
+            }
+
             const pullRequest = context.payload.pull_request;
             const title = pullRequest.title;
             const match = title.match(/[A-Z][A-Z0-9]+-\d+/);
