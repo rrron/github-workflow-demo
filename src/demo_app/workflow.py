@@ -9,9 +9,9 @@ class PullRequestSummary:
     ready_to_merge: bool
 
 
-def extract_jira_key(text: str) -> str | None:
+def extract_jira_key(text1: str) -> str | None:
     """Return the first Jira-like issue key from a branch, commit, or PR title."""
-    compact_text = text.replace("/", "-").replace("_", "-")
+    compact_text = text1.replace("/", "-").replace("_", "-")
     words = compact_text.split()
     tokens = compact_text.split("-")
 
