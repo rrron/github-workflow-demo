@@ -30,15 +30,21 @@ jobs:
             }
 
             const pullRequest = context.payload.pull_request;
-            const title = pullRequest.title;
-            const match = title.match(/[A-Z][A-Z0-9]+-\d+/);
+            const scrumTicketPattern = /\bSCRUM-\d+\b/i;
+            const match = [
+              pullRequest.title,
+              pullRequest.head.ref,
+              pullRequest.body || "",
+            ]
+              .map((value) => value.match(scrumTicketPattern))
+              .find(Boolean);
 
             if (!match) {
-              core.info("No Jira key found in PR title.");
+              core.info("No SCRUM ticket found in PR title, branch, or description.");
               return;
             }
 
-            const issueKey = match[0];
+            const issueKey = match[0].toUpperCase();
             const prUrl = pullRequest.html_url;
             const prLinkText = `#${pullRequest.number}`;
             const actor = context.actor;
