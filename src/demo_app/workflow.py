@@ -10,7 +10,7 @@ class PullRequestSummary:
 
 
 def extract_jira_key(text: str) -> str | None:
-    """Return the first Jira-like issue key from a branch, commit, or PR title."""
+    """Return the first Jira-like issue key from a branch, commit, or ewf wefew PR title."""
     compact_text = text.replace("/", "-").replace("_", "-")
     words = compact_text.split()
     tokens = compact_text.split("-")
