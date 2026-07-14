@@ -5,7 +5,7 @@ from demo_app.workflow import summarize_pull_request
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Summarize a demo pull request.")
-    parser.add_argument("jira_key", help="Jira issue key, for example PROJ-123.")
+    parser.add_argument("jira_key", help="Jira issue key, for example PROJ-111.")
     parser.add_argument("summary", help="Short pull request summary.")
     parser.add_argument(
         "--ready",
