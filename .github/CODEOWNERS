@@ -1,6 +1,6 @@
 # Users listed here must have write access to the repository.
 
-* @rrron @AleksandrFOF
+* @rrron @AleksandrFOF @rrronaldo-lang
 
 # Protect workflow and ownership changes with the repository owner.
-/.github/ @rrron
+/.github/ @rrron 
