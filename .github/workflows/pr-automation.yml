@@ -12,6 +12,51 @@ permissions:
   pull-requests: write
 
 jobs:
+  title:
+    name: title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened')
+    steps:
+      - name: Prefix title with Jira key from branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+
+            if (!pr) {
+              core.info("No pull request found for this event.");
+              return;
+            }
+
+            const jiraKeyPattern = /\b([A-Z][A-Z0-9]+-\d+)\b/i;
+            const titleMatch = pr.title.match(jiraKeyPattern);
+
+            if (titleMatch) {
+              core.info(`Pull request title already contains Jira key ${titleMatch[1].toUpperCase()}.`);
+              return;
+            }
+
+            const branchMatch = pr.head.ref.match(jiraKeyPattern);
+
+            if (!branchMatch) {
+              core.info(`No Jira key found in branch ${pr.head.ref}.`);
+              return;
+            }
+
+            const jiraKey = branchMatch[1].toUpperCase();
+            const title = `${jiraKey} ${pr.title}`.trim();
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number: pr.number,
+              title,
+            });
+
+            core.info(`Updated pull request title to "${title}".`);
+
   labels:
     name: labels
     runs-on: ubuntu-latest
