@@ -335,6 +335,9 @@ jobs:
                   if (!review.user?.login) {
                     continue;
                   }
+                  if (review.commit_id !== pr.head.sha) {
+                    continue;
+                  }
                   latestReviewByUser.set(review.user.login, review.state);
                 }
 
