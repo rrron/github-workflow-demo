@@ -319,10 +319,37 @@ jobs:
               if (state === "changes_requested") {
                 await removeStatusLabelsExcept("status: changes-requested");
                 await addLabel("status: changes-requested");
+                return;
               }
               if (state === "approved") {
-                await removeStatusLabelsExcept("status: approved");
-                await addLabel("status: approved");
+                const requiredApprovals = 2;
+                const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  per_page: 100,
+                });
+                const latestReviewByUser = new Map();
+
+                for (const review of reviews) {
+                  if (!review.user?.login) {
+                    continue;
+                  }
+                  latestReviewByUser.set(review.user.login, review.state);
+                }
+
+                const approvalCount = [...latestReviewByUser.values()]
+                  .filter((reviewState) => reviewState === "APPROVED")
+                  .length;
+
+                if (approvalCount >= requiredApprovals) {
+                  await removeStatusLabelsExcept("status: approved");
+                  await addLabel("status: approved");
+                } else {
+                  await removeStatusLabelsExcept("status: needs-approval");
+                  await addLabel("status: needs-approval");
+                  core.info(`Waiting for approvals: ${approvalCount}/${requiredApprovals}.`);
+                }
               }
               return;
             }
