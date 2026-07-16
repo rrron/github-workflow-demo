@@ -34,8 +34,13 @@ jobs:
               "client-robyn-workflow-demo": "Robyn",
               "client-amber-workflow-demo": "Amber",
             };
+            const repoByClient = {
+              Robyn: "rrron/client-robyn-workflow-demo",
+              Amber: "rrron/client-amber-workflow-demo",
+            };
             const scrumTicketPattern = /\bSCRUM-(\d+)\b/i;
             const clientPattern = /\[(Robyn|Amber)\]/i;
+            const clientNamePattern = /\b(robyn|amber)\b/i;
 
             function detectClient() {
               const repoName = pr.head.repo?.name || "";
@@ -49,7 +54,13 @@ jobs:
                 .map((value) => value.match(clientPattern))
                 .find(Boolean);
 
-              return match ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : null;
+              if (match) {
+                return match[1][0].toUpperCase() + match[1].slice(1).toLowerCase();
+              }
+
+              const branchMatch = pr.head.ref.match(clientNamePattern);
+
+              return branchMatch ? branchMatch[1][0].toUpperCase() + branchMatch[1].slice(1).toLowerCase() : null;
             }
 
             function detectScrumTicket(commits) {
@@ -162,7 +173,7 @@ jobs:
             const commitBullets = buildCommitBullets(commits) || "- No commits found.";
             const clientName = client || "Common";
             const jiraKey = ticket || "SCRUM-000";
-            const sourceRepo = pr.head.repo?.full_name || pr.head.label;
+            const sourceRepo = repoByClient[clientName] || pr.head.repo?.full_name || pr.head.label;
             const section = [
               "## Client",
               "",
@@ -223,7 +234,11 @@ jobs:
               "client-robyn-workflow-demo": "Robyn",
               "client-amber-workflow-demo": "Amber",
             };
-            const client = clientByRepo[pr.head.repo?.name] || "Common";
+            const branchMatch = pr.head.ref.match(/\b(robyn|amber)\b/i);
+            const branchClient = branchMatch
+              ? branchMatch[1][0].toUpperCase() + branchMatch[1].slice(1).toLowerCase()
+              : null;
+            const client = clientByRepo[pr.head.repo?.name] || branchClient || "Common";
             const reviewers = [
               `${client} Product Owner`,
               `${client} Security`,

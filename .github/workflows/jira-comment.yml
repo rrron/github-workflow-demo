@@ -43,8 +43,13 @@ jobs:
               "client-robyn-workflow-demo": "Robyn",
               "client-amber-workflow-demo": "Amber",
             };
+            const repoByClient = {
+              Robyn: "rrron/client-robyn-workflow-demo",
+              Amber: "rrron/client-amber-workflow-demo",
+            };
             const scrumTicketPattern = /\bSCRUM-\d+\b/i;
             const clientPattern = /\[(Robyn|Amber)\]/i;
+            const clientNamePattern = /\b(robyn|amber)\b/i;
 
             const commits = await github.paginate(github.rest.pulls.listCommits, {
               owner,
@@ -70,13 +75,19 @@ jobs:
             const titleClientMatch = [pullRequest.title, pullRequest.body || ""]
               .map((value) => value.match(clientPattern))
               .find(Boolean);
+            const branchClientMatch = pullRequest.head.ref.match(clientNamePattern);
+            const branchClient = branchClientMatch
+              ? branchClientMatch[1][0].toUpperCase() + branchClientMatch[1].slice(1).toLowerCase()
+              : null;
             const client =
               clientByRepo[pullRequest.head.repo?.name] ||
-              (titleClientMatch ? titleClientMatch[1][0].toUpperCase() + titleClientMatch[1].slice(1).toLowerCase() : "Common");
+              (titleClientMatch ? titleClientMatch[1][0].toUpperCase() + titleClientMatch[1].slice(1).toLowerCase() : null) ||
+              branchClient ||
+              "Common";
             const prUrl = pullRequest.html_url;
             const prLinkText = `#${pullRequest.number}`;
             const actor = context.actor;
-            const sourceRepo = pullRequest.head.repo?.full_name || pullRequest.head.label;
+            const sourceRepo = repoByClient[client] || pullRequest.head.repo?.full_name || pullRequest.head.label;
             const targetRepo = pullRequest.base.repo.full_name;
             const branch = pullRequest.head.ref;
             const base = pullRequest.base.ref;
