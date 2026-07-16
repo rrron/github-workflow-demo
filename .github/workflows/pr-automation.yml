@@ -1,7 +1,7 @@
 name: pr-automation
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   pull_request_review:
     types: [submitted]
@@ -12,12 +12,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  title:
-    name: title
+  metadata:
+    name: metadata
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened')
+    if: github.event_name == 'pull_request_target'
     steps:
-      - name: Prefix title with SCRUM ticket from branch
+      - name: Normalize client pull request metadata
         uses: actions/github-script@v7
         with:
           script: |
@@ -30,41 +30,217 @@ jobs:
               return;
             }
 
+            const clientByRepo = {
+              "client-robyn-workflow-demo": "Robyn",
+              "client-amber-workflow-demo": "Amber",
+            };
             const scrumTicketPattern = /\bSCRUM-(\d+)\b/i;
-            const titleMatch = pr.title.match(scrumTicketPattern);
+            const clientPattern = /\[(Robyn|Amber)\]/i;
 
-            if (titleMatch) {
-              core.info(`Pull request title already contains SCRUM ticket SCRUM-${titleMatch[1]}.`);
-              return;
+            function detectClient() {
+              const repoName = pr.head.repo?.name || "";
+              const repoClient = clientByRepo[repoName];
+
+              if (repoClient) {
+                return repoClient;
+              }
+
+              const match = [pr.title, pr.body || ""]
+                .map((value) => value.match(clientPattern))
+                .find(Boolean);
+
+              return match ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : null;
             }
 
-            const branchMatch = pr.head.ref.match(scrumTicketPattern);
+            function detectScrumTicket(commits) {
+              const sources = [
+                pr.title,
+                pr.head.ref,
+                pr.body || "",
+                ...commits.map((commit) => commit.commit.message),
+              ];
+              const match = sources
+                .map((value) => value.match(scrumTicketPattern))
+                .find(Boolean);
 
-            if (!branchMatch) {
-              core.info(`No SCRUM ticket found in branch ${pr.head.ref}.`);
-              return;
+              return match ? `SCRUM-${match[1]}` : null;
             }
 
-            const scrumNumber = branchMatch[1];
-            const scrumTicket = `SCRUM-${scrumNumber}`;
-            const githubGeneratedTitlePattern = new RegExp(
-              `^scrum\\s+${scrumNumber}(?:[\\s/_-]+)?`,
-              "i",
-            );
-            const summary = pr.title
-              .replace(githubGeneratedTitlePattern, "")
-              .replace(/^[\s/_-]+/, "")
-              .trim();
-            const title = `${scrumTicket} ${summary || "Update pull request"}`.trim();
+            function titleFromBranch(ticket, client) {
+              const branchTail = pr.head.ref.split("/").at(-1) || pr.head.ref;
+              let words = branchTail;
 
-            await github.rest.pulls.update({
+              if (ticket) {
+                words = words.replace(new RegExp(ticket, "i"), "");
+              }
+              if (client) {
+                words = words.replace(new RegExp(client, "i"), "");
+              }
+
+              words = words
+                .replace(/[_-]+/g, " ")
+                .replace(/\b(feature|bugfix|hotfix|demo|change)\b/gi, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+
+              return words || "Update client workflow";
+            }
+
+            function normalizeSummary(title, ticket, client) {
+              let summary = title
+                .replace(clientPattern, "")
+                .replace(scrumTicketPattern, "")
+                .trim();
+
+              if (ticket) {
+                const scrumNumber = ticket.split("-")[1];
+                const githubGeneratedTitlePattern = new RegExp(
+                  `^scrum\\s+${scrumNumber}(?:[\\s/_-]+)?`,
+                  "i",
+                );
+                summary = summary
+                  .replace(githubGeneratedTitlePattern, "")
+                  .replace(/^[\s/_-]+/, "")
+                  .trim();
+              }
+
+              if (client) {
+                summary = summary
+                  .replace(new RegExp(`^${client}\\b[\\s:_-]*`, "i"), "")
+                  .trim();
+              }
+
+              return summary || titleFromBranch(ticket, client);
+            }
+
+            function buildTitle(ticket, client, summary) {
+              const clientPrefix = client ? `[${client}] ` : "";
+              const ticketPrefix = ticket ? `${ticket} ` : "";
+
+              return `${clientPrefix}${ticketPrefix}${summary}`.replace(/\s+/g, " ").trim();
+            }
+
+            function buildCommitBullets(commits) {
+              return commits
+                .slice(0, 10)
+                .map((commit) => {
+                  const sha = commit.sha.slice(0, 7);
+                  const message = commit.commit.message.split("\n")[0];
+                  return `- [${sha}](${commit.html_url}) ${message}`;
+                })
+                .join("\n");
+            }
+
+            function upsertManagedSection(body, section) {
+              const start = "<!-- demo-client-context:start -->";
+              const end = "<!-- demo-client-context:end -->";
+              const managed = `${start}\n${section.trim()}\n${end}`;
+
+              if (!body) {
+                return `${managed}\n`;
+              }
+
+              const pattern = new RegExp(`${start}[\\s\\S]*?${end}`, "m");
+
+              if (pattern.test(body)) {
+                return body.replace(pattern, managed);
+              }
+
+              return `${managed}\n\n${body.trim()}\n`;
+            }
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
               owner,
               repo,
               pull_number: pr.number,
-              title,
+              per_page: 100,
             });
+            const client = detectClient();
+            const ticket = detectScrumTicket(commits);
+            const summary = normalizeSummary(pr.title, ticket, client);
+            const title = buildTitle(ticket, client, summary);
+            const commitBullets = buildCommitBullets(commits) || "- No commits found.";
+            const clientName = client || "Common";
+            const jiraKey = ticket || "SCRUM-000";
+            const sourceRepo = pr.head.repo?.full_name || pr.head.label;
+            const section = [
+              "## Client",
+              "",
+              clientName,
+              "",
+              "## Jira",
+              "",
+              jiraKey,
+              "",
+              "## Source",
+              "",
+              `Repository: ${sourceRepo}`,
+              `Branch: ${pr.head.ref}`,
+              `Target: ${pr.base.repo.full_name} / ${pr.base.ref}`,
+              "",
+              "## Change Summary",
+              "",
+              commitBullets,
+              "",
+              "## Demo Review Policy",
+              "",
+              "Required approvals: 6",
+              "",
+              "Required reviewers:",
+              `- ${clientName} Product Owner`,
+              `- ${clientName} Security`,
+              `- ${clientName} QA`,
+              "- Common Platform",
+              "- Release Manager",
+              "- Jira Owner",
+            ].join("\n");
+            const body = upsertManagedSection(pr.body || "", section);
 
-            core.info(`Updated pull request title to "${title}".`);
+            if (pr.title !== title || (pr.body || "") !== body) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pr.number,
+                title,
+                body,
+              });
+              core.info(`Updated pull request metadata for ${clientName}: "${title}".`);
+            } else {
+              core.info("Pull request metadata is already up to date.");
+            }
+
+  client-review-policy:
+    name: client-review-policy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target'
+    steps:
+      - name: Publish demo reviewer policy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const clientByRepo = {
+              "client-robyn-workflow-demo": "Robyn",
+              "client-amber-workflow-demo": "Amber",
+            };
+            const client = clientByRepo[pr.head.repo?.name] || "Common";
+            const reviewers = [
+              `${client} Product Owner`,
+              `${client} Security`,
+              `${client} QA`,
+              "Common Platform",
+              "Release Manager",
+              "Jira Owner",
+            ];
+
+            await core.summary
+              .addHeading("Client review policy")
+              .addRaw(`Client: ${client}`)
+              .addBreak()
+              .addRaw("Required approvals: 6")
+              .addBreak()
+              .addList(reviewers)
+              .write();
 
   labels:
     name: labels
@@ -76,7 +252,6 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-
             const pr = context.payload.pull_request;
 
             if (!pr) {
@@ -88,7 +263,7 @@ jobs:
               return;
             }
 
-            const currentLabels = context.payload.pull_request?.labels || [];
+            const currentLabels = pr.labels || [];
             const labelNames = currentLabels.map((label) => label.name);
             const statusLabels = [
               "status: needs-review",

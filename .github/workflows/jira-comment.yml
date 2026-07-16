@@ -1,13 +1,14 @@
 name: jira-comment
 
 on:
-  pull_request:
-    types: [opened, reopened, closed]
+  pull_request_target:
+    types: [opened, reopened, synchronize, closed]
   pull_request_review:
     types: [submitted]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   comment:
@@ -30,33 +31,62 @@ jobs:
             }
 
             const pullRequest = context.payload.pull_request;
+
+            if (!pullRequest) {
+              core.info("No pull request found for this event.");
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const clientByRepo = {
+              "client-robyn-workflow-demo": "Robyn",
+              "client-amber-workflow-demo": "Amber",
+            };
             const scrumTicketPattern = /\bSCRUM-\d+\b/i;
-            const match = [
+            const clientPattern = /\[(Robyn|Amber)\]/i;
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner,
+              repo,
+              pull_number: pullRequest.number,
+              per_page: 100,
+            });
+            const issueMatch = [
               pullRequest.title,
               pullRequest.head.ref,
               pullRequest.body || "",
+              ...commits.map((commit) => commit.commit.message),
             ]
               .map((value) => value.match(scrumTicketPattern))
               .find(Boolean);
 
-            if (!match) {
-              core.info("No SCRUM ticket found in PR title, branch, or description.");
+            if (!issueMatch) {
+              core.info("No SCRUM ticket found in PR title, branch, description, or commits.");
               return;
             }
 
-            const issueKey = match[0].toUpperCase();
+            const issueKey = issueMatch[0].toUpperCase();
+            const titleClientMatch = [pullRequest.title, pullRequest.body || ""]
+              .map((value) => value.match(clientPattern))
+              .find(Boolean);
+            const client =
+              clientByRepo[pullRequest.head.repo?.name] ||
+              (titleClientMatch ? titleClientMatch[1][0].toUpperCase() + titleClientMatch[1].slice(1).toLowerCase() : "Common");
             const prUrl = pullRequest.html_url;
             const prLinkText = `#${pullRequest.number}`;
             const actor = context.actor;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const shortSha = pullRequest.head.sha.substring(0, 7);
-            const commitUrl = `https://github.com/${owner}/${repo}/commit/${pullRequest.head.sha}`;
+            const sourceRepo = pullRequest.head.repo?.full_name || pullRequest.head.label;
+            const targetRepo = pullRequest.base.repo.full_name;
             const branch = pullRequest.head.ref;
             const base = pullRequest.base.ref;
             const eventName = context.eventName;
             const action = context.payload.action;
             const reviewState = context.payload.review?.state;
+            const commitSummary = commits
+              .slice(0, 10)
+              .map((commit) => `${commit.sha.slice(0, 7)} ${commit.commit.message.split("\n")[0]}`)
+              .join("; ");
 
             const text = (value) => ({ type: "text", text: value });
             const link = (value, href) => ({
@@ -69,31 +99,31 @@ jobs:
 
             if (eventName === "pull_request_review" && reviewState === "approved") {
               comment = [
-                text(`GitHub PR approved by ${actor}: `),
+                text(`GitHub PR approved for ${client} by ${actor}: `),
                 link(prLinkText, prUrl),
-                text(". Auto-merge can complete after required gates pass."),
+                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}. Commits: ${commitSummary || "none"}.`),
               ];
-            } else if (eventName === "pull_request" && action === "closed" && pullRequest.merged) {
+            } else if (eventName === "pull_request_target" && action === "closed" && pullRequest.merged) {
+              const shortSha = pullRequest.merge_commit_sha?.substring(0, 7) || pullRequest.head.sha.substring(0, 7);
+              const commitUrl = `https://github.com/${targetRepo}/commit/${pullRequest.merge_commit_sha || pullRequest.head.sha}`;
               comment = [
-                text(`GitHub PR merged to ${base}: `),
+                text(`GitHub PR merged for ${client} to ${targetRepo} / ${base}: `),
                 link(prLinkText, prUrl),
                 text(". Final commit: "),
                 link(shortSha, commitUrl),
-                text("."),
+                text(`. Jira: ${issueKey}. Commits: ${commitSummary || "none"}.`),
               ];
-            } else if (eventName === "pull_request" && action === "closed") {
+            } else if (eventName === "pull_request_target" && action === "closed") {
               comment = [
-                text(`GitHub PR closed without merge by ${actor}: `),
+                text(`GitHub PR closed without merge for ${client} by ${actor}: `),
                 link(prLinkText, prUrl),
-                text("."),
+                text(`. Jira: ${issueKey}.`),
               ];
-            } else if (eventName === "pull_request" && ["opened", "reopened"].includes(action)) {
+            } else if (eventName === "pull_request_target" && ["opened", "reopened", "synchronize"].includes(action)) {
               comment = [
-                text(`GitHub PR ${action} by ${actor}: `),
+                text(`GitHub PR ${action} for ${client} by ${actor}: `),
                 link(prLinkText, prUrl),
-                text(`. Branch ${branch} targets ${base}; commit `),
-                link(shortSha, commitUrl),
-                text("."),
+                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}; target: ${targetRepo} / ${base}. Commits: ${commitSummary || "none"}.`),
               ];
             }
 
