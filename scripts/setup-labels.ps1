@@ -3,7 +3,7 @@ param(
 )
 
 $labels = @(
-    @{ Name = "status: needs-review"; Color = "fbca04"; Description = "Pull request is waiting for review" },
+    @{ Name = "status: needs-approval"; Color = "fbca04"; Description = "Pull request is waiting for approval" },
     @{ Name = "status: changes-requested"; Color = "d73a4a"; Description = "Reviewer requested changes" },
     @{ Name = "status: approved"; Color = "0e8a16"; Description = "Pull request has approval" },
     @{ Name = "status: ready-to-merge"; Color = "5319e7"; Description = "Pull request is allowed to pass the merge label gate" },

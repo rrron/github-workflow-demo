@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    labels = ["status: ready-to-merge"] if args.ready else ["status: needs-review"]
+    labels = ["status: ready-to-merge"] if args.ready else ["status: needs-approval"]
     result = summarize_pull_request(f"{args.jira_key} {args.summary}", labels)
 
     print(f"jira_key={result.jira_key}")

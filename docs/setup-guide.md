@@ -48,7 +48,7 @@ demo user is invited. Update it before the customer demo.
 
 Create these labels in GitHub UI under `Issues > Labels`:
 
-- `status: needs-review`
+- `status: needs-approval`
 - `status: changes-requested`
 - `status: approved`
 - `status: ready-to-merge`
@@ -149,7 +149,7 @@ git push -u origin PROJ-123-demo-change
 GitHub UI:
 
 1. Open PR titled `PROJ-123 Add demo change`.
-2. Show automatic `status: needs-review` label.
+2. Show automatic `status: needs-approval` label.
 3. Show CI checks: lint, static-analysis, test, build.
 4. Show CODEOWNERS review request.
 5. Reviewer requests changes.

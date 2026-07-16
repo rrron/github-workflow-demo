@@ -281,7 +281,7 @@ jobs:
             const currentLabels = pr.labels || [];
             const labelNames = currentLabels.map((label) => label.name);
             const statusLabels = [
-              "status: needs-review",
+              "status: needs-approval",
               "status: changes-requested",
               "status: approved",
             ];
@@ -328,11 +328,11 @@ jobs:
             }
 
             if (pr.draft || context.payload.action === "synchronize") {
-              await removeStatusLabelsExcept("status: needs-review");
-              await addLabel("status: needs-review");
+              await removeStatusLabelsExcept("status: needs-approval");
+              await addLabel("status: needs-approval");
               return;
             }
 
             if (!labelNames.some((label) => statusLabels.includes(label))) {
-              await addLabel("status: needs-review");
+              await addLabel("status: needs-approval");
             }

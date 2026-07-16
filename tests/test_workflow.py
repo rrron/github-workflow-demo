@@ -18,7 +18,7 @@ def test_extracts_jira_key_from_prefixed_branch_name() -> None:
 
 
 def test_summary_requires_review_by_default() -> None:
-    summary = summarize_pull_request("PROJ-789 Add build step", ["status: needs-review"])
+    summary = summarize_pull_request("PROJ-789 Add build step", ["status: needs-approval"])
 
     assert summary.jira_key == "PROJ-789"
     assert summary.needs_review is True
