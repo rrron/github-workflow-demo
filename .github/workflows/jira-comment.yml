@@ -94,48 +94,85 @@ jobs:
             const eventName = context.eventName;
             const action = context.payload.action;
             const reviewState = context.payload.review?.state;
-            const commitSummary = commits
-              .slice(0, 10)
-              .map((commit) => `${commit.sha.slice(0, 7)} ${commit.commit.message.split("\n")[0]}`)
-              .join("; ");
-
             const text = (value) => ({ type: "text", text: value });
             const link = (value, href) => ({
               type: "text",
               text: value,
               marks: [{ type: "link", attrs: { href } }],
             });
+            const paragraph = (content) => ({ type: "paragraph", content });
+            const commitTitle = (commit) => commit.commit.message.split("\n")[0];
+            const commitLink = (commit) => link(commit.sha.slice(0, 7), commit.html_url);
+            const commitList = (commitItems) => {
+              if (!commitItems.length) {
+                return paragraph([text("Commits: none.")]);
+              }
+
+              const visibleCommits = commitItems.slice(0, 10);
+              const items = visibleCommits.map((commit) => ({
+                type: "listItem",
+                content: [
+                  paragraph([
+                    commitLink(commit),
+                    text(` ${commitTitle(commit)}`),
+                  ]),
+                ],
+              }));
+
+              if (commitItems.length > visibleCommits.length) {
+                items.push({
+                  type: "listItem",
+                  content: [
+                    paragraph([
+                      text(`... and ${commitItems.length - visibleCommits.length} more commits.`),
+                    ]),
+                  ],
+                });
+              }
+
+              return {
+                type: "bulletList",
+                content: items,
+              };
+            };
+            const withCommitList = (intro) => [
+              paragraph(intro),
+              paragraph([text("Commits:")]),
+              commitList(commits),
+            ];
 
             let comment = null;
 
             if (eventName === "pull_request_review" && reviewState === "approved") {
-              comment = [
+              comment = withCommitList([
                 text(`GitHub PR approved for ${client} by ${actor}: `),
                 link(prLinkText, prUrl),
-                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}. Commits: ${commitSummary || "none"}.`),
-              ];
+                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}.`),
+              ]);
             } else if (eventName === "pull_request_target" && action === "closed" && pullRequest.merged) {
               const shortSha = pullRequest.merge_commit_sha?.substring(0, 7) || pullRequest.head.sha.substring(0, 7);
               const commitUrl = `https://github.com/${targetRepo}/commit/${pullRequest.merge_commit_sha || pullRequest.head.sha}`;
-              comment = [
+              comment = withCommitList([
                 text(`GitHub PR merged for ${client} to ${targetRepo} / ${base}: `),
                 link(prLinkText, prUrl),
                 text(". Final commit: "),
                 link(shortSha, commitUrl),
-                text(`. Jira: ${issueKey}. Commits: ${commitSummary || "none"}.`),
-              ];
+                text(`. Jira: ${issueKey}.`),
+              ]);
             } else if (eventName === "pull_request_target" && action === "closed") {
               comment = [
-                text(`GitHub PR closed without merge for ${client} by ${actor}: `),
-                link(prLinkText, prUrl),
-                text(`. Jira: ${issueKey}.`),
+                paragraph([
+                  text(`GitHub PR closed without merge for ${client} by ${actor}: `),
+                  link(prLinkText, prUrl),
+                  text(`. Jira: ${issueKey}.`),
+                ]),
               ];
             } else if (eventName === "pull_request_target" && ["opened", "reopened", "synchronize"].includes(action)) {
-              comment = [
+              comment = withCommitList([
                 text(`GitHub PR ${action} for ${client} by ${actor}: `),
                 link(prLinkText, prUrl),
-                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}; target: ${targetRepo} / ${base}. Commits: ${commitSummary || "none"}.`),
-              ];
+                text(`. Jira: ${issueKey}. Source: ${sourceRepo} / ${branch}; target: ${targetRepo} / ${base}.`),
+              ]);
             }
 
             if (!comment) {
@@ -147,12 +184,7 @@ jobs:
               body: {
                 type: "doc",
                 version: 1,
-                content: [
-                  {
-                    type: "paragraph",
-                    content: comment,
-                  },
-                ],
+                content: comment,
               },
             };
 
